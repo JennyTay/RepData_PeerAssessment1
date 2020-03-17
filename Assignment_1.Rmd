@@ -1,0 +1,132 @@
+Assignment 1 for Reproducible Research, Week Two
+==================================================
+
+
+
+First, we attach libraries, read in the data, and look at dataframe.
+
+```{r echo = TRUE}
+
+library(tidyverse)
+
+
+dat <- read_csv("activity.csv")
+
+str(dat)
+
+
+```
+
+
+
+# Question 1: Steps per day
+The total number of steps per day is reported in the table.
+The mean and median total number of steps per day is 9354.23 and 10395, respectively.
+```{r echo=TRUE}
+
+#
+perday <- dat %>% 
+  group_by(date) %>% 
+  summarize(total = sum(steps, na.rm = TRUE),
+         average = mean(steps, na.rm = TRUE),
+        mediam = median(steps, na.rm = TRUE)) 
+perday
+mean(perday$total)
+median(perday$total)
+```
+
+
+## Histogram of total steps per day
+```{r}
+
+ggplot(data = perday, mapping = aes(total))+
+  geom_histogram()+
+  labs(x = "Steps/Day, Oct 1 - Nov 30, 2012",
+       y = "Count")
+
+
+```
+
+# Question 2: Average daily activity pattern
+
+This is a time series plot of the 5-minute internal number of steps, averaged across all days. Then we use the which function to find the row with the largest average. The interval with the largest average is 835, which has an average of 206.17 steps.
+
+```{r}
+
+perinterval <- dat %>% 
+  group_by(interval) %>% 
+  summarize(average = mean(steps, na.rm = TRUE)) %>% 
+  ungroup()
+  
+
+ggplot(data = perinterval, mapping = aes(x = interval, y = average))+
+  geom_line()+
+  labs(x = "5-minute intervals over a day",
+       y = "average steps per day")
+
+which(perinterval$average == max(perinterval$average))
+
+```
+
+# Question 3: Imputing missing values
+
+To determine how many missing values in the data set, we is the is.na() function on the steps variable. There are 2304 missing observations.
+
+To impute the missing values, we will fill in a missing value with the average number of steps in that interval.
+
+We then group by the day and make a histogram of the total number of steps per day.
+
+Surprisingly, both the mean and median of the imputed total number of steps per day is 10766.19 ,which is higher than the values calculated from the incomplete dataset: 9354.23 and 10395.
+
+```{r}
+sum(is.na(dat$steps))
+
+dat_impute <- left_join(dat, perinterval, by = "interval")
+
+dat_impute$steps_impute <- ifelse(is.na(dat_impute$steps), dat_impute$average, dat_impute$steps)
+
+dat_impute <- dat_impute %>% 
+  group_by(date) %>% 
+  summarise(total = sum(steps_impute),
+         average = mean(steps_impute, na.rm = TRUE),
+        mediam = median(steps_impute, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(data = dat_impute, mapping = aes(total))+
+  geom_histogram()
+
+mean(dat_impute$total, na.rm = T)
+median(dat_impute$total, na.rm = T)
+
+```
+
+# Question 4: Differences in steps between weekdays and weekends?
+
+In this secction we use the lubridate package to assign each day a label of either a weekday or weekend.  We average the the number of steps at each interval after grouping by whether or not the day was a weekend or weekday.  We finally use the lattice plot package to make a panel plot. We see that on weekends, people take similar amounts of steps thoughout the day, whereas on weekdays, people tend to walk most in the morning and a bit more in the evenings - likely off work hours. 
+
+```{r}
+
+library(lubridate)
+library(lattice)
+
+dat_impute <- left_join(dat, perinterval, by = "interval")
+
+dat_impute$steps_impute <- ifelse(is.na(dat_impute$steps), dat_impute$average, dat_impute$steps)
+
+dat_impute$weekday <- weekdays(dat_impute$date)
+
+dat_impute$weekend <- ifelse(dat_impute$weekday %in% c("Saturday", "Sunday"), "weekend", "weekday")
+
+dat_impute_day <- dat_impute %>% 
+  group_by(weekend, interval) %>% 
+  summarise(average = mean(steps_impute))
+
+xyplot(average ~ interval | weekend, data = dat_impute_day,
+       main = "Daily Step Patterns, Weekends vs Weekdays",
+       xlab = "5 minute interval", ylab = "Steps",
+       layout = c(1,2),
+       type = "l")
+
+```
+
+
